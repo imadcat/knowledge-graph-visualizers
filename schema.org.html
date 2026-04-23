@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Schema.org 3D Universe Explorer</title>
+  <style>
+    :root {
+      --bg: #030305;
+      --panel-bg: rgba(15, 15, 20, 0.85);
+      --primary: #00e5ff;
+      --text: #e0e0e0;
+      --text-muted: #888;
+    }
+    body { margin: 0; overflow: hidden; background-color: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--text); }
+    
+    #loading {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 18px; pointer-events: none; z-index: 100; color: var(--primary); text-align: center;
+      text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+    }
+
+    /* Top Search Bar */
+    #search-container {
+      position: absolute; top: 15px; left: 15px; z-index: 10; width: calc(100% - 30px); max-width: 350px;
+      display: none; flex-direction: column; gap: 5px;
+    }
+    #search-input {
+      width: 100%; padding: 12px 15px; border-radius: 8px; border: 1px solid #333;
+      background: var(--panel-bg); color: white; font-size: 16px; backdrop-filter: blur(10px);
+      box-sizing: border-box; outline: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    #search-input:focus { border-color: var(--primary); }
+    #suggestions {
+      background: var(--panel-bg); border-radius: 8px; border: 1px solid #333;
+      max-height: 200px; overflow-y: auto; backdrop-filter: blur(10px); display: none;
+    }
+    .suggestion-item {
+      padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #222; font-size: 14px;
+    }
+    .suggestion-item:hover { background: rgba(0, 229, 255, 0.1); color: var(--primary); }
+
+    /* Bottom / Side Knowledge Panel */
+    #info-panel {
+      position: absolute; bottom: 0; left: 0; width: 100%; max-height: 60vh; z-index: 10;
+      background: var(--panel-bg); backdrop-filter: blur(15px); border-top: 1px solid #333;
+      border-radius: 20px 20px 0 0; padding: 20px; box-sizing: border-box;
+      transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow-y: auto; box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+    }
+    /* Switch to side panel on desktop/tablets */
+    @media (min-width: 768px) {
+      #info-panel {
+        top: 15px; right: 15px; bottom: auto; left: auto; width: 350px; max-height: calc(100vh - 30px);
+        border-radius: 12px; border: 1px solid #333; transform: translateX(120%);
+      }
+      #info-panel.open { transform: translateX(0); }
+    }
+    #info-panel.open { transform: translateY(0); }
+
+    .close-btn { position: absolute; top: 15px; right: 15px; background: none; border: none; color: #888; font-size: 24px; cursor: pointer; line-height: 1; }
+    .close-btn:hover { color: white; }
+    
+    #entity-title { margin: 0 0 5px 0; color: var(--primary); font-size: 22px; }
+    #entity-desc { font-size: 13px; color: #ccc; line-height: 1.5; margin-bottom: 15px; padding-right: 20px;}
+    
+    .section-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: bold; margin: 15px 0 8px 0; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+    
+    .tag { display: inline-block; background: rgba(255,255,255,0.05); border: 1px solid #444; padding: 4px 10px; border-radius: 15px; font-size: 12px; margin: 0 6px 6px 0; cursor: pointer; transition: 0.2s; }
+    .tag:hover { background: rgba(0, 229, 255, 0.1); border-color: var(--primary); color: var(--primary); }
+    
+    .prop-row { display: flex; flex-direction: column; background: rgba(255,255,255,0.02); padding: 8px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #222; }
+    .prop-name { color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .prop-target { color: var(--text-muted); font-size: 12px; }
+    .prop-target span { color: #a270ff; cursor: pointer; font-weight: bold;}
+    .prop-target span:hover { text-decoration: underline; color: #b794ff; }
+
+    /* Overlay button to clear focus */
+    #reset-focus {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 5;
+      background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 8px 20px;
+      border-radius: 20px; cursor: pointer; backdrop-filter: blur(5px); display: none; font-size: 14px;
+    }
+    #reset-focus:hover { background: rgba(255,255,255,0.2); }
+
+    /* Floating node labels overlay */
+    #node-labels {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 4; overflow: hidden;
+    }
+    .node-label {
+      position: absolute; transform: translate(-50%, -100%);
+      color: #fff; font-size: 11px; font-weight: 600;
+      text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,1);
+      white-space: nowrap; padding: 2px 6px;
+      background: rgba(0,0,0,0.5); border-radius: 3px;
+    }
+    .node-label.selected { color: var(--primary); font-size: 13px; }
+  </style>
+  <script src="https://unpkg.com/3d-force-graph"></script>
+</head>
+<body>
+
+  <div id="loading">Downloading Schema Dictionary...<br><span style="font-size: 13px; color: #888;">Mapping ~10,000 data pathways.</span></div>
+  
+  <div id="search-container">
+    <input type="text" id="search-input" placeholder="🔍 Search entities (e.g., Product)..." autocomplete="off">
+    <div id="suggestions"></div>
+  </div>
+
+  <button id="reset-focus">Exit Focus Mode</button>
+
+  <div id="info-panel">
+    <button class="close-btn" id="close-panel">&times;</button>
+    <h2 id="entity-title">Entity</h2>
+    <div id="entity-desc">Description</div>
+    
+    <div id="parents-sec" style="display:none;">
+      <div class="section-title">Inherits From</div>
+      <div id="entity-parents"></div>
+    </div>
+
+    <div id="children-sec" style="display:none;">
+      <div class="section-title">Extended By (Sub-classes)</div>
+      <div id="entity-children"></div>
+    </div>
+    
+    <div id="props-sec" style="display:none;">
+      <div class="section-title">Properties (It Has)</div>
+      <div id="entity-props"></div>
+    </div>
+
+    <div id="usedby-sec" style="display:none;">
+      <div class="section-title">Expected By (Used On)</div>
+      <div id="entity-usedby"></div>
+    </div>
+  </div>
+
+  <div id="node-labels"></div>
+  <div id="3d-graph"></div>
+
+  <script>
+    let Graph, allNodes = [], allLinks = [], nodeMap = new Map();
+    let selectedNode = null;
+    let highlightNodes = new Set(), highlightLinks = new Set();
+
+    async function init() {
+      try {
+        const response = await fetch('https://schema.org/version/latest/schemaorg-current-https.jsonld');
+        const data = await response.json();
+        
+        const ensureArr = (val) => val == null ? [] : (Array.isArray(val) ? val : [val]);
+        const cleanId = (id) => id ? id.replace('schema:', '').replace('rdfs:', '') : '';
+
+        // 1. EXTRACT ENTITIES (CLASSES)
+        data['@graph'].forEach(item => {
+          const types = ensureArr(item['@type']);
+          if (types.includes('rdfs:Class')) {
+            const id = cleanId(item['@id']);
+            
+            // Clean description text from HTML tags if present
+            let desc = item['rdfs:comment'] || "No description available.";
+            if (typeof desc === 'object' && desc['@value']) desc = desc['@value'];
+            desc = desc.replace(/(<([^>]+)>)/gi, "");
+
+            const node = { 
+              id, name: id, val: 1, desc, group: id === 'Thing' ? 'root' : 'class',
+              parents: [], children: [], properties: [], usedBy: [] 
+            };
+            allNodes.push(node);
+            nodeMap.set(id, node);
+          }
+        });
+
+        // 2. EXTRACT RELATIONSHIPS
+        data['@graph'].forEach(item => {
+          const types = ensureArr(item['@type']);
+          const sourceId = cleanId(item['@id']);
+
+          // Inheritance (subClassOf)
+          if (types.includes('rdfs:Class')) {
+            ensureArr(item['rdfs:subClassOf']).forEach(p => {
+              const targetId = cleanId(p['@id']);
+              if (nodeMap.has(sourceId) && nodeMap.has(targetId)) {
+                allLinks.push({ source: sourceId, target: targetId, type: 'subclass', name: 'subClassOf' });
+                nodeMap.get(sourceId).parents.push(targetId);
+                nodeMap.get(targetId).children.push(sourceId);
+                nodeMap.get(targetId).val += 0.5; // Parent grows larger
+              }
+            });
+          }
+
+          // Properties (Domain -> Range)
+          if (types.includes('rdf:Property')) {
+            const propName = cleanId(item['@id']);
+            const domains = ensureArr(item['schema:domainIncludes']);
+            const ranges = ensureArr(item['schema:rangeIncludes']);
+
+            domains.forEach(d => {
+              ranges.forEach(r => {
+                const dId = cleanId(d['@id']);
+                const rId = cleanId(r['@id']);
+                
+                if (nodeMap.has(dId) && nodeMap.has(rId)) {
+                  allLinks.push({ source: dId, target: rId, type: 'property', name: propName });
+                  nodeMap.get(dId).properties.push({ name: propName, target: rId });
+                  nodeMap.get(rId).usedBy.push({ name: propName, source: dId });
+                  nodeMap.get(dId).val += 0.05;
+                }
+              });
+            });
+          }
+        });
+
+        setupUI();
+        renderGraph();
+
+      } catch (err) {
+        document.getElementById('loading').innerHTML = '<span style="color:#ff3366;">Error loading data. Check internet connection.</span>';
+      }
+    }
+
+    function renderGraph() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('search-container').style.display = 'flex';
+
+      const elem = document.getElementById('3d-graph');
+      Graph = ForceGraph3D()(elem)
+        .graphData({ nodes: allNodes, links: allLinks })
+        .nodeLabel(n => !selectedNode ? `<div style="background: rgba(0,0,0,0.8); padding: 4px 8px; border-radius: 4px; color: white;">${n.name}</div>` : '')
+        .nodeVal('val')
+        
+        // --- SMART FOCUS HIGHLIGHTING ---
+        .nodeColor(n => {
+          if (!selectedNode) return n.group === 'root' ? '#ff3366' : '#ffcc00';
+          if (n === selectedNode) return '#00e5ff'; // Cyan for selected
+          if (highlightNodes.has(n)) return '#ffcc00'; // Yellow for neighbors
+          return 'rgba(120, 120, 120, 0.35)'; // Dimmed but visible
+        })
+        .linkColor(l => {
+          if (!selectedNode) return l.type === 'subclass' ? 'rgba(255,255,255,0.3)' : 'rgba(0, 153, 255, 0.05)';
+          if (highlightLinks.has(l)) return l.type === 'subclass' ? 'rgba(255,255,255,0.9)' : 'rgba(0, 229, 255, 0.6)';
+          return 'rgba(255,255,255,0.06)'; // Dimmed but visible
+        })
+        .linkWidth(l => selectedNode && highlightLinks.has(l) ? 1.5 : (l.type === 'subclass' ? 1.0 : 0.2))
+        .linkDirectionalArrowLength(l => l.type === 'subclass' && (!selectedNode || highlightLinks.has(l)) ? 4 : 0)
+        .linkDirectionalArrowRelPos(1)
+        
+        // Interactions
+        .onNodeClick(node => triggerFocus(node.id))
+        .onBackgroundClick(() => clearFocus());
+
+      Graph.d3Force('charge').strength(-150);
+    }
+
+    // --- UX INTERACTION LOGIC --- //
+
+    window.triggerFocus = function(id) {
+      const node = nodeMap.get(id);
+      if (!node) return;
+
+      selectedNode = node;
+      highlightNodes.clear();
+      highlightLinks.clear();
+      highlightNodes.add(node);
+
+      // Find all 1-degree connections
+      allLinks.forEach(link => {
+        const src = link.source.id || link.source;
+        const tgt = link.target.id || link.target;
+        if (src === node.id || tgt === node.id) {
+          highlightLinks.add(link);
+          highlightNodes.add(link.source);
+          highlightNodes.add(link.target);
+        }
+      });
+
+      // Update 3D Visuals
+      Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()).linkDirectionalArrowLength(Graph.linkDirectionalArrowLength());
+
+      // Move Camera smoothly
+      const distance = 80;
+      const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z);
+      Graph.cameraPosition({ x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }, node, 1500);
+
+      // Build floating labels for focused nodes
+      buildFocusLabels();
+
+      populateKnowledgePanel(node);
+      
+      document.getElementById('reset-focus').style.display = 'block';
+      document.getElementById('suggestions').style.display = 'none';
+      document.getElementById('search-input').value = '';
+    };
+
+    function buildFocusLabels() {
+      const container = document.getElementById('node-labels');
+      container.innerHTML = '';
+      highlightNodes.forEach(n => {
+        const el = document.createElement('div');
+        el.className = 'node-label' + (n === selectedNode ? ' selected' : '');
+        el.textContent = n.name;
+        el.dataset.nodeId = n.id;
+        container.appendChild(el);
+      });
+    }
+
+    function clearFocusLabels() {
+      document.getElementById('node-labels').innerHTML = '';
+    }
+
+    function updateLabelPositions() {
+      requestAnimationFrame(updateLabelPositions);
+      if (!selectedNode || !Graph) return;
+      const labels = document.querySelectorAll('.node-label');
+      labels.forEach(el => {
+        const node = nodeMap.get(el.dataset.nodeId);
+        if (!node || node.x == null) { el.style.display = 'none'; return; }
+        const coords = Graph.graph2ScreenCoords(node.x, node.y, node.z);
+        el.style.left = coords.x + 'px';
+        el.style.top = (coords.y - 10) + 'px';
+        el.style.display = '';
+      });
+    }
+    updateLabelPositions();
+
+    function clearFocus() {
+      selectedNode = null;
+      highlightNodes.clear();
+      highlightLinks.clear();
+      Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()).linkDirectionalArrowLength(Graph.linkDirectionalArrowLength());
+      clearFocusLabels();
+      document.getElementById('info-panel').classList.remove('open');
+      document.getElementById('reset-focus').style.display = 'none';
+    }
+
+    function populateKnowledgePanel(node) {
+      document.getElementById('entity-title').innerText = node.name;
+      document.getElementById('entity-desc').innerText = node.desc;
+
+      // Parents
+      const pSec = document.getElementById('parents-sec');
+      const pDiv = document.getElementById('entity-parents');
+      if (node.parents.length > 0) {
+        pDiv.innerHTML = node.parents.map(p => `<div class="tag" onclick="triggerFocus('${p}')">↑ ${p}</div>`).join('');
+        pSec.style.display = 'block';
+      } else { pSec.style.display = 'none'; }
+
+      // Children
+      const cSec = document.getElementById('children-sec');
+      const cDiv = document.getElementById('entity-children');
+      if (node.children.length > 0) {
+        const INITIAL_LIMIT = 15;
+        const renderChildren = (showAll) => {
+          const items = showAll ? node.children : node.children.slice(0, INITIAL_LIMIT);
+          let html = items.map(c => `<div class="tag" onclick="triggerFocus('${c}')">↓ ${c}</div>`).join('');
+          if (!showAll && node.children.length > INITIAL_LIMIT) {
+            html += `<div class="tag" style="cursor:pointer; color:var(--primary); border-color:var(--primary);" onclick="window._expandChildren()">+ ${node.children.length - INITIAL_LIMIT} more...</div>`;
+          }
+          cDiv.innerHTML = html;
+        };
+        window._expandChildren = () => renderChildren(true);
+        renderChildren(false);
+        cSec.style.display = 'block';
+      } else { cSec.style.display = 'none'; }
+
+      // Properties
+      const prSec = document.getElementById('props-sec');
+      const prDiv = document.getElementById('entity-props');
+      if (node.properties.length > 0) {
+        // Deduplicate properties (Schema.org maps domains/ranges arrays weirdly in JSONLD)
+        const uniqueProps = [];
+        const seen = new Set();
+        node.properties.forEach(p => {
+          const key = p.name + p.target;
+          if(!seen.has(key)) { seen.add(key); uniqueProps.push(p); }
+        });
+
+        // Alphabetize properties for easy reading
+        uniqueProps.sort((a,b) => a.name.localeCompare(b.name));
+
+        prDiv.innerHTML = uniqueProps.map(p => `
+          <div class="prop-row">
+            <div class="prop-name">${p.name}</div>
+            <div class="prop-target">Expects: <span onclick="triggerFocus('${p.target}')">${p.target}</span></div>
+          </div>
+        `).join('');
+        prSec.style.display = 'block';
+      } else { prSec.style.display = 'none'; }
+
+      // Used By (Incoming Properties)
+      const uSec = document.getElementById('usedby-sec');
+      const uDiv = document.getElementById('entity-usedby');
+      if (node.usedBy && node.usedBy.length > 0) {
+        const uniqueUsedBy = [];
+        const seenU = new Set();
+        node.usedBy.forEach(p => {
+          const key = p.name + p.source;
+          if(!seenU.has(key)) { seenU.add(key); uniqueUsedBy.push(p); }
+        });
+        uniqueUsedBy.sort((a,b) => a.name.localeCompare(b.name));
+
+        uDiv.innerHTML = uniqueUsedBy.map(p => `
+          <div class="prop-row">
+            <div class="prop-name">${p.name}</div>
+            <div class="prop-target">On: <span onclick="triggerFocus('${p.source}')">${p.source}</span></div>
+          </div>
+        `).join('');
+        uSec.style.display = 'block';
+      } else { uSec.style.display = 'none'; }
+
+      document.getElementById('info-panel').classList.add('open');
+    }
+
+    // --- SEARCH UI SETUP --- //
+    function setupUI() {
+      const searchInput = document.getElementById('search-input');
+      const suggestions = document.getElementById('suggestions');
+
+      searchInput.addEventListener('input', (e) => {
+        const val = e.target.value.toLowerCase().trim();
+        if (val.length < 2) { suggestions.style.display = 'none'; return; }
+        
+        // Find top 8 matches
+        const filtered = allNodes.filter(n => n.name.toLowerCase().includes(val)).slice(0, 8);
+        if (filtered.length > 0) {
+          suggestions.innerHTML = filtered.map(n => `<div class="suggestion-item" onclick="triggerFocus('${n.id}')">${n.name}</div>`).join('');
+          suggestions.style.display = 'block';
+        } else {
+          suggestions.style.display = 'none';
+        }
+      });
+
+      // Close things
+      document.getElementById('close-panel').addEventListener('click', clearFocus);
+      document.getElementById('reset-focus').addEventListener('click', clearFocus);
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#search-container')) suggestions.style.display = 'none';
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

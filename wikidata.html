@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wikidata Live 3D Explorer</title>
+    <style>
+        :root {
+            --bg: #030305;
+            --panel-bg: rgba(15, 15, 20, 0.85);
+            --primary: #00e5ff;
+            --secondary: #ffcc00;
+            --tertiary: #a270ff;
+            --text: #e0e0e0;
+            --text-muted: #888;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--text);
+        }
+
+        #loading {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            background: rgba(51, 153, 255, 0.2);
+            border: 1px solid var(--primary);
+            backdrop-filter: blur(5px);
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity 0.3s;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--primary);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Search Bar */
+        #search-container {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 10;
+            width: calc(100% - 30px);
+            max-width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background: var(--panel-bg);
+            color: white;
+            font-size: 16px;
+            backdrop-filter: blur(10px);
+            box-sizing: border-box;
+            outline: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        #search-input:focus {
+            border-color: var(--primary);
+        }
+
+        #suggestions {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            border: 1px solid #444;
+            max-height: 250px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #222;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .suggestion-item:hover {
+            background: rgba(51, 153, 255, 0.1);
+        }
+
+        .sugg-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .sugg-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Knowledge Panel */
+        #info-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            max-height: 60vh;
+            z-index: 10;
+            background: var(--panel-bg);
+            backdrop-filter: blur(15px);
+            border-top: 1px solid #444;
+            border-radius: 20px 20px 0 0;
+            padding: 20px;
+            box-sizing: border-box;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (min-width: 768px) {
+            #info-panel {
+                top: 15px;
+                right: 15px;
+                bottom: auto;
+                left: auto;
+                width: 350px;
+                max-height: calc(100vh - 30px);
+                border-radius: 12px;
+                border: 1px solid #444;
+                transform: translateX(120%);
+            }
+        }
+
+        #info-panel.open {
+            transform: translateY(0);
+        }
+
+        @media (min-width: 768px) {
+            #info-panel.open {
+                transform: translateX(0);
+            }
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: white;
+        }
+
+        .qid-badge {
+            display: inline-block;
+            background: #222;
+            color: #aaa;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+            margin-bottom: 8px;
+            border: 1px solid #444;
+        }
+
+        #entity-title {
+            margin: 0 0 5px 0;
+            color: white;
+            font-size: 22px;
+        }
+
+        #entity-desc {
+            font-size: 13px;
+            color: #ccc;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            padding-right: 20px;
+        }
+
+        .section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: bold;
+            margin: 15px 0 8px 0;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+        }
+
+        .tag {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #444;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin: 0 6px 6px 0;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .tag:hover {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .prop-row {
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border: 1px solid #222;
+        }
+
+        .prop-name {
+            color: #fff;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .prop-target {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .prop-target span {
+            color: #a270ff;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .prop-target span:hover {
+            text-decoration: underline;
+            color: #b794ff;
+        }
+
+        .wd-link {
+            display: inline-block;
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+            text-align: center;
+            width: 100%;
+        }
+
+        .wd-link:hover {
+            color: white;
+            text-decoration: underline;
+        }
+
+        #reset-focus {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #555;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            display: none;
+            font-size: 14px;
+        }
+
+        #reset-focus:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Floating node labels overlay */
+        #node-labels {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 4;
+            overflow: hidden;
+        }
+
+        .node-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 1);
+            white-space: nowrap;
+            padding: 2px 6px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 3px;
+        }
+
+        .node-label.selected {
+            color: var(--primary);
+            font-size: 13px;
+        }
+    </style>
+    <script src="https://unpkg.com/3d-force-graph"></script>
+</head>
+
+<body>
+
+    <div id="loading">
+        <div class="spinner"></div> Live Query...
+    </div>
+
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="🔍 Search Wikidata (e.g. Bank, Dog, Software)..."
+            autocomplete="off">
+        <div id="suggestions"></div>
+        <div
+            style="margin-top: 10px; font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; padding: 0 5px;">
+            <span>Subclass Limit: <span id="limit-val"
+                    style="color: var(--primary); font-weight: bold;">Auto</span></span>
+            <input type="range" id="limit-slider" min="0" max="500" step="10" value="0"
+                style="width: 120px; accent-color: var(--primary); cursor: pointer;" title="Set to 0 for Auto">
+        </div>
+    </div>
+
+    <button id="reset-focus">Exit Focus Mode</button>
+
+    <div id="info-panel">
+        <button class="close-btn" id="close-panel">&times;</button>
+        <div class="qid-badge" id="entity-qid">Q...</div>
+        <h2 id="entity-title">Entity</h2>
+        <div id="entity-desc">Description</div>
+
+        <div id="parents-sec" style="display:none;">
+            <div class="section-title" id="parents-title">Inherits From</div>
+            <div id="entity-parents"></div>
+        </div>
+
+        <div id="children-sec" style="display:none;">
+            <div class="section-title" id="children-title">Extended By (Sub-classes)</div>
+            <div id="entity-children"></div>
+        </div>
+
+        <div id="statements-sec" style="display:none;">
+            <div class="section-title" id="statements-title">Statements</div>
+            <div id="entity-statements"></div>
+        </div>
+
+        <a href="#" id="wd-url" class="wd-link" target="_blank">View Raw JSON/RDF on Wikidata ↗</a>
+    </div>
+
+    <div id="node-labels"></div>
+    <div id="3d-graph"></div>
+
+    <script>
+
+        let Graph, allNodes = [], allLinks = [];
+        const nodeMap = new Map(), linkSet = new Set();
+        let selectedNode = null;
+        let highlightNodeIds = new Set(), highlightLinkKeys = new Set();
+        const fetchedParents = new Set();
+        const fetchedSubclasses = new Set();
+
+        // The Seed Ontology (Primes the universe so it isn't empty)
+        const roots = [
+            { id: 'Q35120', name: 'Entity', desc: 'top-level Wikidata class' },
+            { id: 'Q223557', name: 'Physical Object', desc: 'object that exists in physical space', parent: 'Q35120' },
+            { id: 'Q7048977', name: 'Abstract Entity', desc: 'entity that is abstract', parent: 'Q35120' },
+            { id: 'Q5', name: 'Human', desc: 'common name of Homo sapiens', parent: 'Q223557' },
+            { id: 'Q43229', name: 'Organization', desc: 'group of people with a common purpose', parent: 'Q7048977' },
+            { id: 'Q1656682', name: 'Event', desc: 'occurrence happening at a determinable time and place', parent: 'Q35120' }
+        ];
+
+        function addNode(id, name, desc, group = 'class') {
+            if (!nodeMap.has(id)) {
+                const node = { id, name, desc, val: 1, group, parents: [], children: [], instances: [] };
+                allNodes.push(node);
+                nodeMap.set(id, node);
+            }
+            return nodeMap.get(id);
+        }
+
+        function addLink(source, target, type, label) {
+            const linkId = `${source}-${target}-${type}`;
+            if (!linkSet.has(linkId) && nodeMap.has(source) && nodeMap.has(target)) {
+                allLinks.push({ source, target, type, name: label });
+                linkSet.add(linkId);
+                nodeMap.get(target).val += 0.5; // Parent node grows physically larger
+
+                if (type === 'subclass') {
+                    if (!nodeMap.get(source).parents.includes(target)) nodeMap.get(source).parents.push(target);
+                    if (!nodeMap.get(target).children.includes(source)) nodeMap.get(target).children.push(source);
+                } else if (type === 'instance') {
+                    if (!nodeMap.get(target).instances.includes(source)) nodeMap.get(target).instances.push(source);
+                }
+            }
+        }
+
+        async function querySPARQL(sparql, retries = 2) {
+            const loadEl = document.getElementById('loading');
+            loadEl.style.opacity = '1';
+            const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(sparql)}&origin=*`;
+
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                try {
+                    const res = await fetch(url, {
+                        headers: {
+                            'Accept': 'application/sparql-results+json',
+                            'Api-User-Agent': 'Wikidata-3D-Explorer/1.0 (contact: tom@example.com)'
+                        }
+                    });
+
+                    if (!res.ok) {
+                        console.warn(`[SPARQL] HTTP ${res.status} on attempt ${attempt + 1}`, await res.text().catch(() => ''));
+                        if ((res.status === 429 || res.status >= 500) && attempt < retries) {
+                            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+                            continue;
+                        }
+                        loadEl.style.opacity = '0';
+                        console.error(`[SPARQL] Giving up after ${attempt + 1} attempts (HTTP ${res.status})`);
+                        return [];
+                    }
+
+                    const data = await res.json();
+                    loadEl.style.opacity = '0';
+                    return data.results.bindings;
+                } catch (e) {
+                    console.error(`[SPARQL] Fetch error on attempt ${attempt + 1}:`, e.message);
+                    if (attempt < retries) {
+                        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+                        continue;
+                    }
+                    loadEl.style.opacity = '0';
+                    console.error('[SPARQL] All retries exhausted. Network or CORS issue.');
+                    return [];
+                }
+            }
+            loadEl.style.opacity = '0';
+            return [];
+        }
+
+        function initUniverse() {
+            roots.forEach(r => {
+                addNode(r.id, r.name, r.desc, r.id === 'Q35120' ? 'root' : 'class');
+                if (r.parent) addLink(r.id, r.parent, 'subclass', 'subclass of');
+                fetchedParents.add(r.id); // Pre-register so ancestor crawler stops here
+            });
+            renderGraph();
+        }
+
+        // --- LIVE EXPANSION ENGINE ---
+        async function fetchParentsLive(qId) {
+            const q = `SELECT ?p ?pLabel ?pDesc WHERE { wd:${qId} wdt:P279 ?p . OPTIONAL { ?p schema:description ?pDesc . FILTER(LANG(?pDesc) = "en") } SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT 15`;
+            const results = await querySPARQL(q);
+            results.forEach(row => {
+                const pId = row.p.value.split('/').pop();
+                addNode(pId, row.pLabel.value, row.pDesc ? row.pDesc.value : '', 'class');
+                addLink(qId, pId, 'subclass', 'subclass of');
+            });
+        }
+
+        let userDefinedLimit = null;
+        const sliderEl = document.getElementById('limit-slider');
+
+        sliderEl.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            if (val === 0) {
+                userDefinedLimit = null;
+                document.getElementById('limit-val').innerText = 'Auto';
+            } else {
+                userDefinedLimit = val;
+                document.getElementById('limit-val').innerText = val;
+            }
+        });
+
+        sliderEl.addEventListener('change', async (e) => {
+            if (!selectedNode) return;
+
+            const cDiv = document.getElementById('entity-children');
+            cDiv.innerHTML = '<span style="color:#888;font-size:12px;">Updating...</span>';
+
+            let limit = userDefinedLimit;
+            if (limit === null) {
+                limit = Math.max(15, Math.min(80, 400 - allNodes.length));
+            }
+
+            if (selectedNode.children && selectedNode.children.length > limit) {
+                // PRUNE excess subclasses
+                const childrenToPrune = selectedNode.children.slice(limit);
+                selectedNode.children = selectedNode.children.slice(0, limit);
+
+                const safeToRemoveIds = new Set();
+                childrenToPrune.forEach(childId => {
+                    const childNode = nodeMap.get(childId);
+                    if (childNode) {
+                        // Safely delete nodes that are only connected as subclasses to this node
+                        if (childNode.parents.length <= 1 && childNode.children.length === 0) {
+                            safeToRemoveIds.add(childId);
+                            nodeMap.delete(childId);
+                            fetchedSubclasses.delete(childId);
+                            fetchedParents.delete(childId);
+                        } else {
+                            childNode.parents = childNode.parents.filter(p => p !== selectedNode.id);
+                        }
+                    }
+                });
+
+                allNodes = allNodes.filter(n => !safeToRemoveIds.has(n.id));
+                allLinks = allLinks.filter(l => {
+                    const src = typeof l.source === 'object' ? l.source.id : l.source;
+                    const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+                    if (safeToRemoveIds.has(src) || safeToRemoveIds.has(tgt)) return false;
+
+                    // Remove the specific subclass links between selectedNode and pruned children
+                    if ((src === selectedNode.id && childrenToPrune.includes(tgt)) ||
+                        (tgt === selectedNode.id && childrenToPrune.includes(src))) {
+                        return false;
+                    }
+                    return true;
+                });
+
+                linkSet.clear();
+                allLinks.forEach(l => {
+                    const src = typeof l.source === 'object' ? l.source.id : l.source;
+                    const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+                    linkSet.add(`${src}-${tgt}-${l.type}`);
+                });
+
+            } else if (!selectedNode.exhaustedSubclasses) {
+                // FETCH MORE subclasses ONLY if we haven't already fetched all of them
+                await fetchSubclassesLive(selectedNode.id);
+            }
+
+            refreshGraph();
+            rebuildHighlights(selectedNode);
+            Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth());
+            buildFocusLabels();
+
+            // Re-render Knowledge Panel children
+            const cTitle = document.getElementById('children-title');
+            if (selectedNode.children && selectedNode.children.length > 0) {
+                cTitle.innerText = `Extended By (Sub-classes) ${selectedNode.children.length}`;
+                const INITIAL_LIMIT = 15;
+                const renderChildren = (showAll) => {
+                    const items = showAll ? selectedNode.children : selectedNode.children.slice(0, INITIAL_LIMIT);
+                    let html = items.map(c => {
+                        const n = nodeMap.get(c);
+                        return `<div class="tag" onclick="triggerFocus('${c}')">↓ ${n ? n.name : c}</div>`;
+                    }).join('');
+                    if (!showAll && selectedNode.children.length > INITIAL_LIMIT) {
+                        html += `<div class="tag" style="cursor:pointer; color:var(--primary); border-color:var(--primary);" onclick="window._expandChildren()">+ ${selectedNode.children.length - INITIAL_LIMIT} more...</div>`;
+                    }
+                    cDiv.innerHTML = html;
+                };
+                window._expandChildren = () => renderChildren(true);
+                renderChildren(false);
+            } else {
+                cTitle.innerText = `Extended By (Sub-classes) 0`;
+                cDiv.innerHTML = '<span style="color:#555;font-size:12px;">No subclasses found</span>';
+            }
+        });
+
+        async function fetchSubclassesLive(qId) {
+            // Dynamic limit to keep performance smooth (max ~400 nodes total recommended)
+            let limit = userDefinedLimit;
+            if (limit === null) {
+                // Auto limit based on remaining budget, bounded between 15 and 80 per query
+                limit = Math.max(15, Math.min(80, 400 - allNodes.length));
+            }
+            const q = `SELECT ?c ?cLabel ?cDesc WHERE { ?c wdt:P279 wd:${qId} . OPTIONAL { ?c schema:description ?cDesc . FILTER(LANG(?cDesc) = "en") } SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT ${limit}`;
+            const results = await querySPARQL(q);
+
+            if (results.length < limit && nodeMap.has(qId)) {
+                nodeMap.get(qId).exhaustedSubclasses = true;
+            }
+
+            results.forEach(row => {
+                const cId = row.c.value.split('/').pop();
+                addNode(cId, row.cLabel.value, row.cDesc ? row.cDesc.value : '', 'class');
+                addLink(cId, qId, 'subclass', 'subclass of');
+            });
+        }
+
+        async function fetchStatementsLive(qId) {
+            const q = `SELECT ?prop ?propLabel ?val ?valLabel WHERE {
+              wd:${qId} ?p ?val .
+              ?property wikibase:directClaim ?p .
+              ?property rdfs:label ?propLabel .
+              FILTER(LANG(?propLabel) = "en") .
+              OPTIONAL {
+                ?val rdfs:label ?valLabel .
+                FILTER(LANG(?valLabel) = "en")
+              }
+              FILTER(isIRI(?val))
+            } LIMIT 50`;
+            const results = await querySPARQL(q);
+            
+            const stmts = {};
+            let count = 0;
+            results.forEach(row => {
+                const prop = row.propLabel.value;
+                const fullUrl = row.val.value;
+                const isEntity = fullUrl.startsWith('http://www.wikidata.org/entity/');
+                const vId = fullUrl.split('/').pop();
+                const vLabel = row.valLabel ? row.valLabel.value : (isEntity ? vId : decodeURIComponent(vId));
+                
+                if (!stmts[prop]) stmts[prop] = [];
+                stmts[prop].push({ id: vId, label: vLabel, url: fullUrl, isEntity });
+                count++;
+            });
+            return { stmts, count };
+        }
+
+        window.injectAndLink = function(id, label, sourceId, linkName) {
+            addNode(id, label, '', 'property');
+            addLink(sourceId, id, 'statement', linkName);
+            refreshGraph();
+            setTimeout(() => triggerFocus(id), 500);
+        };
+
+        function renderGraph() {
+            const elem = document.getElementById('3d-graph');
+            Graph = ForceGraph3D()(elem)
+                .graphData({ nodes: allNodes, links: allLinks })
+                .nodeLabel(n => !selectedNode ? `<div style="background: rgba(0,0,0,0.8); padding: 4px 8px; border-radius: 4px; border:1px solid #444; color:white;"><b>${n.name}</b><br><span style="color:#aaa; font-size:10px;">${n.id}</span></div>` : '')
+                .linkLabel(l => `<div style="background: rgba(0,0,0,0.8); padding: 4px 8px; border-radius: 4px; border:1px solid #444; color:white;"><b>${l.name}</b></div>`)
+                .nodeVal('val')
+                .nodeColor(n => {
+                    const baseColor = n.group === 'root' ? '#ff3366' : (n.group === 'instance' ? '#a270ff' : '#ffcc00');
+                    if (!selectedNode) return baseColor;
+                    if (n.id === selectedNode.id) return '#00e5ff'; // Cyan
+                    if (highlightNodeIds.has(n.id)) return '#ffcc00'; // Yellow
+                    return 'rgba(120, 120, 120, 0.35)'; // Dimmed
+                })
+                .linkColor(l => {
+                    const baseColor = l.type === 'subclass' ? 'rgba(255,255,255,0.3)' : 'rgba(162, 112, 255, 0.2)';
+                    if (!selectedNode) return baseColor;
+                    const key = (typeof l.source === 'object' ? l.source.id : l.source) + '-' + (typeof l.target === 'object' ? l.target.id : l.target);
+                    if (highlightLinkKeys.has(key)) return l.type === 'subclass' ? 'rgba(255,255,255,0.9)' : 'rgba(0, 229, 255, 0.6)';
+                    return 'rgba(255,255,255,0.06)';
+                })
+                .linkWidth(l => {
+                    if (!selectedNode) return l.type === 'subclass' ? 1.0 : 0.3;
+                    const key = (typeof l.source === 'object' ? l.source.id : l.source) + '-' + (typeof l.target === 'object' ? l.target.id : l.target);
+                    return highlightLinkKeys.has(key) ? 1.5 : 0.3;
+                })
+                .linkDirectionalArrowLength(l => {
+                    if (!selectedNode) return l.type === 'subclass' ? 3 : 0;
+                    const key = (typeof l.source === 'object' ? l.source.id : l.source) + '-' + (typeof l.target === 'object' ? l.target.id : l.target);
+                    return highlightLinkKeys.has(key) ? 3 : 0;
+                })
+                .linkDirectionalArrowRelPos(1)
+                .onNodeClick(node => triggerFocus(node.id))
+                .onBackgroundClick(() => clearFocus());
+
+            Graph.d3Force('charge').strength(-150);
+        }
+
+        function refreshGraph() {
+            // Normalize links in-place: reset source/target back to string IDs
+            allLinks.forEach(l => {
+                if (typeof l.source === 'object') l.source = l.source.id;
+                if (typeof l.target === 'object') l.target = l.target.id;
+            });
+
+            // Pass NEW array instances so 3d-force-graph detects the change and diffs by node.id
+            Graph.graphData({ nodes: [...allNodes], links: [...allLinks] });
+
+            if (selectedNode) {
+                rebuildHighlights(selectedNode);
+                Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth());
+                buildFocusLabels();
+            }
+        }
+
+        // Helper: rebuild highlight sets using string IDs
+        function rebuildHighlights(node) {
+            highlightNodeIds.clear(); highlightLinkKeys.clear();
+            highlightNodeIds.add(node.id);
+            allLinks.forEach(link => {
+                const src = typeof link.source === 'object' ? link.source.id : link.source;
+                const tgt = typeof link.target === 'object' ? link.target.id : link.target;
+                if (src === node.id || tgt === node.id) {
+                    highlightLinkKeys.add(src + '-' + tgt);
+                    highlightNodeIds.add(src);
+                    highlightNodeIds.add(tgt);
+                }
+            });
+        }
+
+        // --- UX INTERACTION ---
+        function centerCameraOnNode(node) {
+            const distance = 90;
+            const hyp = Math.hypot(node.x || 0, node.y || 0, node.z || 0);
+            
+            if (hyp > 1) {
+                const distRatio = 1 + distance / hyp;
+                Graph.cameraPosition({ x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }, node, 1500);
+            } else {
+                Graph.cameraPosition({ x: node.x || 0, y: node.y || 0, z: (node.z || 0) + distance }, node, 1500);
+            }
+        }
+
+        window.triggerFocus = function (id) {
+            const node = nodeMap.get(id);
+            if (!node) return;
+
+            // Unpin previously selected node
+            if (selectedNode && selectedNode.id !== id) {
+                selectedNode.fx = undefined;
+                selectedNode.fy = undefined;
+                selectedNode.fz = undefined;
+            }
+
+            selectedNode = node;
+
+            // Pin the new node so it isn't blasted away by the physics engine when subclasses spawn
+            if (node.x !== undefined && node.y !== undefined && node.z !== undefined) {
+                node.fx = node.x;
+                node.fy = node.y;
+                node.fz = node.z;
+            }
+
+            // Only apply immediate focus dimming if this node's full data is already loaded
+            // Otherwise, populateKnowledgePanelLive will handle the full lifecycle
+            if (fetchedParents.has(node.id) && fetchedSubclasses.has(node.id)) {
+                rebuildHighlights(node);
+                Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()).linkDirectionalArrowLength(Graph.linkDirectionalArrowLength());
+                buildFocusLabels();
+                centerCameraOnNode(node);
+            }
+
+            populateKnowledgePanelLive(node);
+
+            document.getElementById('reset-focus').style.display = 'block';
+            document.getElementById('suggestions').style.display = 'none';
+            document.getElementById('search-input').value = '';
+        };
+
+        async function populateKnowledgePanelLive(node) {
+            document.getElementById('entity-title').innerText = node.name;
+            document.getElementById('entity-qid').innerText = node.id;
+            document.getElementById('entity-desc').innerText = node.desc || 'No description provided.';
+            document.getElementById('wd-url').href = `https://www.wikidata.org/wiki/${node.id}`;
+
+            const pSec = document.getElementById('parents-sec');
+            const pDiv = document.getElementById('entity-parents');
+            const cSec = document.getElementById('children-sec');
+            const cDiv = document.getElementById('entity-children');
+
+            pSec.style.display = 'block'; cSec.style.display = 'block';
+            pDiv.innerHTML = '<span style="color:#888;font-size:12px;">Querying live...</span>';
+            cDiv.innerHTML = '<span style="color:#888;font-size:12px;">Querying live...</span>';
+
+            document.getElementById('info-panel').classList.add('open');
+
+            // Check what data still needs to be fetched
+            const needsParents = !fetchedParents.has(node.id);
+            const needsSubclasses = !fetchedSubclasses.has(node.id);
+
+            if (needsParents || needsSubclasses) {
+                // Temporarily disable focus-mode dimming while graph is being built
+                selectedNode = null;
+                Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth());
+
+                if (needsParents) {
+                    fetchedParents.add(node.id);
+                    await fetchParentsLive(node.id);
+                    await new Promise(r => setTimeout(r, 300));
+                }
+
+                if (needsSubclasses) {
+                    fetchedSubclasses.add(node.id);
+                    await fetchSubclassesLive(node.id);
+                }
+
+                // Push new data into the 3D graph
+                refreshGraph();
+
+                // Chain-crawl ancestors (up to 6 levels) to bridge back to the main graph
+                // ONLY if we just fetched the first set of parents for a totally new node
+                if (needsParents) {
+                    let frontier = [...(node.parents || [])];
+                    let connected = false;
+                    for (let depth = 0; depth < 6 && frontier.length > 0 && !connected; depth++) {
+                        const nextFrontier = [];
+                        for (const pid of frontier) {
+                            // If this node's parents were already in the graph before we started, we've bridged!
+                            if (fetchedParents.has(pid)) { connected = true; break; }
+                            fetchedParents.add(pid);
+                            await new Promise(r => setTimeout(r, 250));
+                            await fetchParentsLive(pid);
+                            const parentNode = nodeMap.get(pid);
+                            if (parentNode && parentNode.parents) {
+                                nextFrontier.push(...parentNode.parents);
+                            }
+                        }
+                        refreshGraph();
+                        frontier = nextFrontier;
+                    }
+                }
+
+                // Re-enable focus mode now that the graph is fully built
+                selectedNode = node;
+                rebuildHighlights(node);
+                Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()).linkDirectionalArrowLength(Graph.linkDirectionalArrowLength());
+                buildFocusLabels();
+                
+                // Allow the physics engine a brief moment to position the newly injected nodes
+                // before we calculate the final camera vector and animate.
+                setTimeout(() => centerCameraOnNode(node), 100);
+            }
+
+            // Render Parents
+            const pTitle = document.getElementById('parents-title');
+            if (node.parents && node.parents.length > 0) {
+                pTitle.innerText = `Inherits From (${node.parents.length})`;
+                pDiv.innerHTML = node.parents.map(p => {
+                    const n = nodeMap.get(p);
+                    return `<div class="tag" onclick="triggerFocus('${p}')">↑ ${n ? n.name : p}</div>`;
+                }).join('');
+            } else {
+                pTitle.innerText = `Inherits From (0)`;
+                pDiv.innerHTML = '<span style="color:#555;font-size:12px;">No parents found (Top-level)</span>';
+            }
+
+            // Render Children
+            const cTitle = document.getElementById('children-title');
+            if (node.children && node.children.length > 0) {
+                cTitle.innerText = `Extended By (Sub-classes) ${node.children.length}`;
+                const INITIAL_LIMIT = 15;
+                const renderChildren = (showAll) => {
+                    const items = showAll ? node.children : node.children.slice(0, INITIAL_LIMIT);
+                    let html = items.map(c => {
+                        const n = nodeMap.get(c);
+                        return `<div class="tag" onclick="triggerFocus('${c}')">↓ ${n ? n.name : c}</div>`;
+                    }).join('');
+                    if (!showAll && node.children.length > INITIAL_LIMIT) {
+                        html += `<div class="tag" style="cursor:pointer; color:var(--primary); border-color:var(--primary);" onclick="window._expandChildren()">+ ${node.children.length - INITIAL_LIMIT} more...</div>`;
+                    }
+                    cDiv.innerHTML = html;
+                };
+                window._expandChildren = () => renderChildren(true);
+                renderChildren(false);
+            } else {
+                cTitle.innerText = `Extended By (Sub-classes) 0`;
+                cDiv.innerHTML = '<span style="color:#555;font-size:12px;">No subclasses found</span>';
+            }
+
+            // Render Statements (Lazy Load)
+            const sSec = document.getElementById('statements-sec');
+            const sTitle = document.getElementById('statements-title');
+            const sDiv = document.getElementById('entity-statements');
+            sSec.style.display = 'block';
+
+            if (!node.statementsCache) {
+                sDiv.innerHTML = '<span style="color:#888;font-size:12px;">Querying statements...</span>';
+                sTitle.innerText = `Statements`;
+                try {
+                    node.statementsCache = await fetchStatementsLive(node.id);
+                } catch (e) {
+                    node.statementsCache = { stmts: {}, count: 0 };
+                }
+            }
+
+            const stData = node.statementsCache;
+            if (stData.count > 0) {
+                sTitle.innerText = `Statements (${stData.count})`;
+                let html = '';
+                for (const [prop, vals] of Object.entries(stData.stmts)) {
+                    const renders = vals.map(v => {
+                        if (v.isEntity) {
+                            return `<span onclick="injectAndLink('${v.id}', '${v.label.replace(/'/g, "\\'")}', '${node.id}', '${prop.replace(/'/g, "\\'")}')">${v.label}</span>`;
+                        } else {
+                            const urlLower = v.url.toLowerCase();
+                            if (urlLower.match(/\.(jpeg|jpg|gif|png|svg|webp)$/i)) {
+                                return `<img src="${v.url}" style="max-width:100%; border-radius:4px; margin-top:5px; display:block;">`;
+                            } else if (urlLower.match(/\.(webm|mp4|ogv)$/i)) {
+                                return `<video controls src="${v.url}" style="max-width:100%; margin-top:5px; display:block;"></video>`;
+                            } else if (urlLower.match(/\.(ogg|mp3|wav|oga)$/i)) {
+                                return `<audio controls src="${v.url}" style="width:100%; margin-top:5px; display:block;"></audio>`;
+                            } else {
+                                return `<a href="${v.url}" target="_blank" style="color:var(--primary); word-break: break-all; margin-top:3px; display:inline-block;">${v.label}</a>`;
+                            }
+                        }
+                    });
+                    
+                    html += `<div class="prop-row">
+                                <div class="prop-name">${prop}</div>
+                                <div class="prop-target">
+                                    ${renders.join(' ')}
+                                </div>
+                             </div>`;
+                }
+                sDiv.innerHTML = html;
+            } else {
+                sTitle.innerText = `Statements (0)`;
+                sDiv.innerHTML = '<span style="color:#555;font-size:12px;">No outgoing statements found</span>';
+            }
+
+            // Re-build highlight set & labels now that new nodes have been fetched
+            rebuildHighlights(node);
+            Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth());
+            buildFocusLabels();
+        }
+
+        function buildFocusLabels() {
+            const container = document.getElementById('node-labels');
+            container.innerHTML = '';
+            highlightNodeIds.forEach(id => {
+                const n = nodeMap.get(id);
+                if (!n) return;
+                const el = document.createElement('div');
+                el.className = 'node-label' + (selectedNode && n.id === selectedNode.id ? ' selected' : '');
+                el.textContent = n.name;
+                el.dataset.nodeId = n.id;
+                container.appendChild(el);
+            });
+        }
+
+        function clearFocusLabels() {
+            document.getElementById('node-labels').innerHTML = '';
+        }
+
+        function updateLabelPositions() {
+            requestAnimationFrame(updateLabelPositions);
+            if (!selectedNode || !Graph) return;
+            const labels = document.querySelectorAll('.node-label');
+            labels.forEach(el => {
+                const node = nodeMap.get(el.dataset.nodeId);
+                if (!node || node.x == null) { el.style.display = 'none'; return; }
+                const coords = Graph.graph2ScreenCoords(node.x, node.y, node.z);
+                el.style.left = coords.x + 'px';
+                el.style.top = (coords.y - 10) + 'px';
+                el.style.display = '';
+            });
+        }
+        updateLabelPositions();
+
+        function clearFocus() {
+            if (selectedNode) {
+                selectedNode.fx = undefined;
+                selectedNode.fy = undefined;
+                selectedNode.fz = undefined;
+            }
+            selectedNode = null; highlightNodeIds.clear(); highlightLinkKeys.clear();
+            Graph.nodeColor(Graph.nodeColor()).linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()).linkDirectionalArrowLength(Graph.linkDirectionalArrowLength());
+            clearFocusLabels();
+            document.getElementById('info-panel').classList.remove('open');
+            document.getElementById('reset-focus').style.display = 'none';
+        }
+
+        // --- SEARCH WIKIDATA LIVE API ---
+        document.getElementById('search-input').addEventListener('input', async (e) => {
+            const val = e.target.value.trim();
+            const suggBox = document.getElementById('suggestions');
+            if (val.length < 3) { suggBox.style.display = 'none'; return; }
+
+            const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(val)}&language=en&format=json&origin=*`;
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (data.search && data.search.length > 0) {
+                suggBox.innerHTML = data.search.map(s => `
+          <div class="suggestion-item" onclick="injectFromSearch('${s.id}', '${(s.label || s.id).replace(/'/g, "\\'")}', '${(s.description || '').replace(/'/g, "\\'")}')">
+            <div class="sugg-title">${s.label || s.id} <span style="color:#aaa;font-weight:normal;font-size:10px;">(${s.id})</span></div>
+            <div class="sugg-desc">${s.description || 'No description'}</div>
+          </div>
+        `).join('');
+                suggBox.style.display = 'block';
+            } else { suggBox.style.display = 'none'; }
+        });
+
+        window.injectFromSearch = function (id, label, desc) {
+            addNode(id, label, desc, 'class');
+            refreshGraph();
+            document.getElementById('suggestions').style.display = 'none';
+            document.getElementById('search-input').value = '';
+            // Wait for the force simulation to assign coordinates before focusing
+            setTimeout(() => triggerFocus(id), 500);
+        };
+
+        document.getElementById('close-panel').addEventListener('click', clearFocus);
+        document.getElementById('reset-focus').addEventListener('click', clearFocus);
+
+        initUniverse();
+    </script>
+</body>
+
+</html>

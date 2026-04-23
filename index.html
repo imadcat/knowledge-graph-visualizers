@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Graph Visualizers</title>
+  <style>
+    :root {
+      --bg: #050508;
+      --card-bg: rgba(20, 20, 25, 0.6);
+      --primary: #00e5ff;
+      --primary-hover: #00b3cc;
+      --secondary: #ff3366;
+      --text: #e0e0e0;
+      --text-muted: #888;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 15% 50%, rgba(0, 229, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 85% 30%, rgba(255, 51, 102, 0.03) 0%, transparent 50%);
+    }
+
+    .header {
+      text-align: center;
+      margin-top: 10vh;
+      margin-bottom: 60px;
+    }
+
+    h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin: 0 0 15px 0;
+      background: linear-gradient(90deg, var(--primary), #a270ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 30px;
+      padding: 20px;
+      max-width: 1000px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 40px 30px;
+      width: 320px;
+      text-decoration: none;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, var(--primary), transparent);
+      opacity: 0.5;
+      transition: opacity 0.3s;
+    }
+
+    .card.schema::before {
+      background: linear-gradient(90deg, var(--secondary), transparent);
+    }
+
+    .card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card-icon {
+      font-size: 40px;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 1.5rem;
+      color: #fff;
+      margin: 0 0 15px 0;
+      font-weight: 600;
+    }
+
+    .card-desc {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin: 0 0 30px 0;
+      flex-grow: 1;
+    }
+
+    .btn {
+      background: rgba(0, 229, 255, 0.1);
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .card.schema .btn {
+      background: rgba(255, 51, 102, 0.1);
+      color: var(--secondary);
+      border-color: var(--secondary);
+    }
+
+    .card:hover .btn {
+      background: var(--primary);
+      color: #000;
+    }
+
+    .card.schema:hover .btn {
+      background: var(--secondary);
+      color: #fff;
+    }
+
+    footer {
+      margin-top: auto;
+      padding: 40px 20px;
+      color: #555;
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: #777;
+      text-decoration: none;
+    }
+    
+    footer a:hover {
+      color: var(--primary);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Knowledge Graph Visualizers</h1>
+    <div class="subtitle">Interactive, live-updating 3D force-directed graphs for exploring vast semantic webs and ontologies directly in your browser.</div>
+  </div>
+
+  <div class="container">
+    
+    <!-- Wikidata Card -->
+    <a href="wikidata.html" class="card">
+      <div class="card-icon">🌐</div>
+      <h2 class="card-title">Wikidata Explorer</h2>
+      <p class="card-desc">Dive into the world's largest open knowledge base. Features live SPARQL querying, infinite traversal, dynamic subclass fetching, and rich multimedia rendering.</p>
+      <div class="btn">Launch Explorer</div>
+    </a>
+
+    <!-- Schema.org Card -->
+    <a href="schema.org.html" class="card schema">
+      <div class="card-icon">🏗️</div>
+      <h2 class="card-title">Schema.org Explorer</h2>
+      <p class="card-desc">Visualize the entire Schema.org vocabulary. Explore ~10,000 data pathways, inheritance trees, and property relationships that define the structure of the web.</p>
+      <div class="btn">Launch Explorer</div>
+    </a>
+
+  </div>
+
+  <footer>
+    Powered by <a href="https://github.com/vasturiano/3d-force-graph" target="_blank">3d-force-graph</a>
+  </footer>
+
+</body>
+</html>
