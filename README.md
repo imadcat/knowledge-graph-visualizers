@@ -1,6 +1,7 @@
 # Wikidata 3D Explorer
 
 An interactive, live-updating 3D visualization tool for exploring the vast [Wikidata](https://www.wikidata.org) knowledge graph. Built with vanilla JavaScript, HTML/CSS, and powered by [3d-force-graph](https://github.com/vasturiano/3d-force-graph), this application lets you literally fly through the semantic web.
+![alt text](image.png)
 
 ## 🌟 Features
 
@@ -44,4 +45,8 @@ If you plan on modifying the tool to scrape massive amounts of data concurrently
 ## 📝 Other Files
 
 - `schema.org.html`: An alternative visualizer template designed for exploring Schema.org vocabularies.
+  
+  <br>
+  <img src="schema_demo.webp" width="600" alt="Schema Explorer Demo">
+
 - `test_chain.py`: A Python utility script used for headless testing of SPARQL subclass crawling logic and debugging Wikidata hierarchy loops.
