@@ -3,6 +3,8 @@
 An interactive, live-updating 3D visualization tool for exploring the vast [Wikidata](https://www.wikidata.org) knowledge graph. Built with vanilla JavaScript, HTML/CSS, and powered by [3d-force-graph](https://github.com/vasturiano/3d-force-graph), this application lets you literally fly through the semantic web.
 ![alt text](image.png)
 
+## [Experience it here](https://imadcat.github.io/knowledge-graph-visualizers/)
+
 ## 🌟 Features
 
 - **Live SPARQL Integration:** There is no static database. Every time you click a node or run a search, the app constructs and executes live SPARQL queries against `query.wikidata.org` to fetch ontology trees and statements on the fly.
